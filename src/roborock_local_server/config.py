@@ -110,13 +110,6 @@ class TurnConfig:
 
 
 @dataclass(frozen=True)
-class WebAppConfig:
-    """Folder of static Web App files served on the HTTPS listener; off when empty."""
-
-    folder: str = ""
-
-
-@dataclass(frozen=True)
 class AppConfig:
     network: NetworkConfig
     broker: BrokerConfig
@@ -125,7 +118,6 @@ class AppConfig:
     admin: AdminConfig
     turn: TurnConfig = TurnConfig()
     logging: LoggingConfig = LoggingConfig()
-    web_app: WebAppConfig = WebAppConfig()
 
 
 @dataclass(frozen=True)
@@ -264,7 +256,6 @@ def _as_bool(value: object, default: bool) -> bool:
 
 # Defaults the Docker image sets for keys a config.toml leaves out. A key that
 # is present in config.toml always wins, so existing configs keep their meaning.
-WEB_APP_FOLDER_ENV = "ROBOROCK_SERVER_WEB_APP_FOLDER"
 MQTT_WEBSOCKET_ENABLED_ENV = "ROBOROCK_SERVER_MQTT_WEBSOCKET_ENABLED"
 
 
@@ -286,7 +277,6 @@ def load_config(path: str | Path) -> AppConfig:
     tls = _get_section(parsed, "tls")
     admin = _get_section(parsed, "admin")
     turn = _get_section(parsed, "turn")
-    web_app = _get_section(parsed, "web_app")
     turn_mode = str(turn.get("mode", "external" if _as_bool(turn.get("enabled"), False) else "disabled")).strip().lower()
     broker_mode = str(broker.get("mode", "embedded")).strip().lower()
     if broker_mode not in {"embedded", "external"}:
@@ -402,9 +392,6 @@ def load_config(path: str | Path) -> AppConfig:
             password=str(turn.get("password", "")).strip(),
             realm=str(turn.get("realm", "") or turn.get("host", "")).strip(),
             ttl=_as_int(turn.get("ttl"), "turn.ttl", 86400),
-        ),
-        web_app=WebAppConfig(
-            folder=str(_toml_env_or_default(web_app, "folder", WEB_APP_FOLDER_ENV, "")).strip()
         ),
     )
 

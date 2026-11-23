@@ -260,7 +260,6 @@ def _supervisors(tmp_path: Path, broker_port: int):
         *,
         mqtt_websocket_enabled: bool | None = True,
         listener_mode: str = "external_tls",
-        web_app_folder: str | None = None,
         cors_allowed_origins: list[str] | None = None,
     ) -> ReleaseSupervisor:
         config_file = _write_config(
@@ -270,9 +269,6 @@ def _supervisors(tmp_path: Path, broker_port: int):
             listener_mode=listener_mode,
             cors_allowed_origins=cors_allowed_origins,
         )
-        if web_app_folder is not None:
-            with config_file.open("a", encoding="utf-8") as handle:
-                handle.write(f'\n\n[web_app]\nfolder = "{web_app_folder}"\n')
         config = load_config(config_file)
         paths = resolve_paths(config_file, config)
         _seed_cloud_login(paths)
@@ -405,25 +401,6 @@ def test_wrong_password_is_refused_and_never_reaches_the_broker(make_supervisor,
             mqtt.receive()
 
     assert broker.connects == 0
-
-
-def test_web_app_folder_neither_intercepts_nor_serves_mqtt(make_supervisor, tmp_path) -> None:
-    web_app = tmp_path / "webapp"
-    web_app.mkdir()
-    (web_app / "index.html").write_text("<!doctype html><title>LocalRock</title>\n", encoding="utf-8")
-    (web_app / "mqtt").write_text("shadow\n", encoding="utf-8")
-    supervisor = make_supervisor(web_app_folder="webapp")
-    client = TestClient(supervisor.app)
-
-    assert client.get("/", headers={"accept": "text/html"}).text.startswith("<!doctype html>")
-    assert client.get("/mqtt").text != "shadow\n"
-    with client.websocket_connect("/mqtt", subprotocols=["mqtt"]) as websocket:
-        mqtt = _WebSocketMqtt(websocket)
-        mqtt.send(_connect_packet(client_id="web-app", username=APP_MQTT_USERNAME, password=APP_MQTT_PASSWORD))
-        assert mqtt.receive() == b"\x20\x02\x00\x00"
-        mqtt.send(b"\xe0\x00")  # DISCONNECT
-        with pytest.raises(WebSocketDisconnect):
-            mqtt.receive()
 
 
 @pytest.mark.parametrize("mqtt_websocket_enabled", [None, False])
