@@ -74,3 +74,9 @@ username = ""
 password = ""
 realm = "api-roborock.example.com"
 ttl = 86400
+
+[web_app]
+# Folder of static Web App files to serve on the HTTPS listener (see
+# docs/web_app.md). A relative path is resolved against this file's folder.
+# Leave empty (the default) to serve nothing.
+folder = ""

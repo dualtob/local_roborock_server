@@ -105,6 +105,13 @@ class TurnConfig:
 
 
 @dataclass(frozen=True)
+class WebAppConfig:
+    """Folder of static Web App files served on the HTTPS listener; off when empty."""
+
+    folder: str = ""
+
+
+@dataclass(frozen=True)
 class AppConfig:
     network: NetworkConfig
     broker: BrokerConfig
@@ -113,6 +120,7 @@ class AppConfig:
     admin: AdminConfig
     turn: TurnConfig = TurnConfig()
     logging: LoggingConfig = LoggingConfig()
+    web_app: WebAppConfig = WebAppConfig()
 
 
 @dataclass(frozen=True)
@@ -260,6 +268,7 @@ def load_config(path: str | Path) -> AppConfig:
     tls = _get_section(parsed, "tls")
     admin = _get_section(parsed, "admin")
     turn = _get_section(parsed, "turn")
+    web_app = _get_section(parsed, "web_app")
     turn_mode = str(turn.get("mode", "external" if _as_bool(turn.get("enabled"), False) else "disabled")).strip().lower()
     broker_mode = str(broker.get("mode", "embedded")).strip().lower()
     if broker_mode not in {"embedded", "external"}:
@@ -368,6 +377,7 @@ def load_config(path: str | Path) -> AppConfig:
             realm=str(turn.get("realm", "") or turn.get("host", "")).strip(),
             ttl=_as_int(turn.get("ttl"), "turn.ttl", 86400),
         ),
+        web_app=WebAppConfig(folder=str(web_app.get("folder", "")).strip()),
     )
 
     if len(config.admin.session_secret) < 24:
