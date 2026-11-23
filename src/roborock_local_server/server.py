@@ -1972,7 +1972,11 @@ class ReleaseSupervisor:
                 project_support=PROJECT_SUPPORT,
             )
         if self.config.network.mqtt_websocket_enabled:
-            register_mqtt_websocket_route(app, mqtt_proxy=lambda: self._mqtt_proxy)
+            register_mqtt_websocket_route(
+                app,
+                mqtt_proxy=lambda: self._mqtt_proxy,
+                allowed_origins=self.config.network.cors_allowed_origins,
+            )
         self._register_protocol_routes(app)
         web_app_dir = web_app_folder(self.config.web_app.folder, self.paths.config_file)
         if web_app_dir is not None:

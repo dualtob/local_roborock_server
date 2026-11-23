@@ -198,6 +198,7 @@ def _write_config(
     broker_port: int,
     mqtt_websocket_enabled: bool | None,
     listener_mode: str,
+    cors_allowed_origins: list[str] | None = None,
 ) -> Path:
     config_file = write_release_config(
         tmp_path,
@@ -211,6 +212,8 @@ def _write_config(
     network_settings = 'bind_host = "127.0.0.1"\n'
     if mqtt_websocket_enabled is not None:
         network_settings += f"mqtt_websocket_enabled = {'true' if mqtt_websocket_enabled else 'false'}\n"
+    if cors_allowed_origins is not None:
+        network_settings += f"cors_allowed_origins = {json.dumps(cors_allowed_origins)}\n"
     text = text.replace("[network]\n", "[network]\n" + network_settings, 1)
     config_file.write_text(text, encoding="utf-8")
     return config_file
@@ -258,12 +261,14 @@ def _supervisors(tmp_path: Path, broker_port: int):
         mqtt_websocket_enabled: bool | None = True,
         listener_mode: str = "external_tls",
         web_app_folder: str | None = None,
+        cors_allowed_origins: list[str] | None = None,
     ) -> ReleaseSupervisor:
         config_file = _write_config(
             tmp_path,
             broker_port=broker_port,
             mqtt_websocket_enabled=mqtt_websocket_enabled,
             listener_mode=listener_mode,
+            cors_allowed_origins=cors_allowed_origins,
         )
         if web_app_folder is not None:
             with config_file.open("a", encoding="utf-8") as handle:
@@ -457,6 +462,44 @@ def test_app_login_is_refused_when_protocol_auth_is_off_just_like_mqtt_over_tls(
             mqtt.receive()
 
     assert broker.connects == 0
+
+
+
+WEB_ORIGIN = "https://web.example.com"
+
+
+def _logs_in_over_websocket(client: TestClient, headers: dict[str, str]) -> None:
+    with client.websocket_connect("/mqtt", subprotocols=["mqtt"], headers=headers) as websocket:
+        mqtt = _WebSocketMqtt(websocket)
+        mqtt.send(_connect_packet(client_id="web-app", username=APP_MQTT_USERNAME, password=APP_MQTT_PASSWORD))
+        assert mqtt.receive() == b"\x20\x02\x00\x00"
+        mqtt.send(b"\xe0\x00")  # DISCONNECT
+        with pytest.raises(WebSocketDisconnect):
+            mqtt.receive()
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [{"Origin": "https://evil.example.com"}, {"Origin": "http://web.example.com"}, {}],
+    ids=["unlisted", "other-scheme", "missing"],
+)
+def test_listed_origins_guard_mqtt_websocket(make_supervisor, broker, headers) -> None:
+    supervisor = make_supervisor(cors_allowed_origins=[WEB_ORIGIN])
+    client = TestClient(supervisor.app)
+
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect("/mqtt", subprotocols=["mqtt"], headers=headers):
+            pass
+    assert broker.connects == 0
+
+    _logs_in_over_websocket(client, {"Origin": WEB_ORIGIN})
+
+
+@pytest.mark.parametrize("headers", [{"Origin": "https://evil.example.com"}, {}], ids=["any", "missing"])
+def test_mqtt_websocket_accepts_any_origin_without_listed_origins(make_supervisor, headers) -> None:
+    client = TestClient(make_supervisor().app)
+
+    _logs_in_over_websocket(client, headers)
 
 
 @contextmanager
