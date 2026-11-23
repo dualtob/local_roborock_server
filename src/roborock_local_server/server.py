@@ -31,7 +31,7 @@ from .bundled_backend.shared.runtime_state import ONBOARDING_STEP_LABELS, REQUIR
 from .cloud import CloudImportManager
 from .config import AppConfig, AppPaths, load_config, resolve_paths
 from .log_retention import configure_jsonl_logging
-from .cors import AllowedOriginsCorsMiddleware
+from .cors import AllowedOrigins, AllowedOriginsCorsMiddleware
 from .mqtt_websocket import register_mqtt_websocket_route
 from .turn_relay import EmbeddedTurnRelay
 from .standalone_admin import register_standalone_admin_routes
@@ -1971,18 +1971,19 @@ class ReleaseSupervisor:
                 supervisor=self,
                 project_support=PROJECT_SUPPORT,
             )
+        allowed_origins = AllowedOrigins(self.config.network.cors_allowed_origins)
         if self.config.network.mqtt_websocket_enabled:
             register_mqtt_websocket_route(
                 app,
                 mqtt_proxy=lambda: self._mqtt_proxy,
-                allowed_origins=self.config.network.cors_allowed_origins,
+                allowed_origins=allowed_origins,
             )
         self._register_protocol_routes(app)
         web_app_dir = web_app_folder(self.config.web_app.folder, self.paths.config_file)
         if web_app_dir is not None:
             app.add_middleware(WebAppMiddleware, folder=web_app_dir, is_api_path=self._is_protocol_api_path)
-        if self.config.network.cors_allowed_origins:
-            app.add_middleware(AllowedOriginsCorsMiddleware, allowed_origins=self.config.network.cors_allowed_origins)
+        if allowed_origins:
+            app.add_middleware(AllowedOriginsCorsMiddleware, allowed_origins=allowed_origins)
         return app
 
     def _uses_local_tls(self) -> bool:

@@ -32,7 +32,7 @@ A browser client served from its own hostname (say `https://web.example.com`) ca
 cors_allowed_origins = ["https://web.example.com"]
 ```
 
-Each entry is an origin: scheme, host and, if it isn't the default, port, with no path (`https://web.example.com:8443`). Restart the stack after changing it.
+Each entry is an origin: scheme, host and, if it isn't the default, port, with no path (`https://web.example.com:8443`). Case and a spelled-out default port (`:443`, `:80`) make no difference. Restart the stack after changing it.
 
 With the list set:
 

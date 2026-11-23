@@ -15,7 +15,7 @@ from fastapi import FastAPI, WebSocket
 from starlette.websockets import WebSocketDisconnect
 
 from .backend import MqttTlsProxy
-from .cors import request_origin
+from .cors import AllowedOrigins, request_origin
 
 MQTT_WEBSOCKET_PATH = "/mqtt"
 MQTT_SUBPROTOCOL = "mqtt"
@@ -28,7 +28,7 @@ def register_mqtt_websocket_route(
     app: FastAPI,
     *,
     mqtt_proxy: Callable[[], MqttTlsProxy | None],
-    allowed_origins: tuple[str, ...] = (),
+    allowed_origins: AllowedOrigins = AllowedOrigins(()),
 ) -> None:
     """Accept MQTT over WebSockets at /mqtt and relay it through the running MQTT proxy.
 
@@ -43,7 +43,7 @@ def register_mqtt_websocket_route(
             # Closing before accept answers the upgrade with HTTP 403.
             await websocket.close()
             return
-        if allowed_origins and request_origin(websocket.scope) not in allowed_origins:
+        if allowed_origins and not allowed_origins.allows(request_origin(websocket.scope)):
             await websocket.close()
             return
         proxy = mqtt_proxy()

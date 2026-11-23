@@ -57,6 +57,27 @@ def test_request_from_a_listed_origin_is_answered_with_its_origin(make_client) -
 @pytest.mark.parametrize(
     ("cors_allowed_origins", "origin"),
     [
+        (["https://Web.Example.com:443"], WEB_ORIGIN),
+        ([WEB_ORIGIN], "https://WEB.example.com"),
+        ([WEB_ORIGIN], "https://web.example.com:443"),
+    ],
+    ids=["listed-mixed-case-with-default-port", "origin-mixed-case", "origin-with-default-port"],
+)
+def test_origins_match_regardless_of_case_and_default_port(make_client, cors_allowed_origins, origin) -> None:
+    client = make_client(cors_allowed_origins=cors_allowed_origins)
+
+    preflight = _preflight(client, origin)
+    request = client.get(API_PATH, headers={"Origin": origin, "Authorization": "token"})
+
+    assert preflight.status_code == 200
+    # The browser compares the answer with its own Origin, so it is echoed as sent.
+    assert preflight.headers["access-control-allow-origin"] == origin
+    assert request.headers["access-control-allow-origin"] == origin
+
+
+@pytest.mark.parametrize(
+    ("cors_allowed_origins", "origin"),
+    [
         ([WEB_ORIGIN], "https://evil.example.com"),
         ([WEB_ORIGIN], "http://web.example.com"),
         (None, WEB_ORIGIN),

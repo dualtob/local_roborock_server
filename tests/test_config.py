@@ -605,6 +605,18 @@ def test_cors_allowed_origins_load_from_config(tmp_path):
     assert load_config(path).network.cors_allowed_origins == ("https://web.example.com", "http://localhost:8080")
 
 
+def test_cors_allowed_origins_are_lowercased_without_default_ports(tmp_path):
+    path = write_release_config(
+        tmp_path,
+        network_settings={"cors_allowed_origins": ["HTTPS://Web.Example.com:443", "http://LocalHost:80/", "http://[::1]:8080"]},
+    )
+    assert load_config(path).network.cors_allowed_origins == (
+        "https://web.example.com",
+        "http://localhost",
+        "http://[::1]:8080",
+    )
+
+
 @pytest.mark.parametrize("origin", ["web.example.com", "https://web.example.com/app", "*", "ftp://web.example.com"])
 def test_cors_allowed_origins_reject_anything_but_an_origin(tmp_path, origin):
     path = write_release_config(tmp_path, network_settings={"cors_allowed_origins": [origin]})

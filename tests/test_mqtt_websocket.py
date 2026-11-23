@@ -491,6 +491,19 @@ def test_listed_origins_guard_mqtt_websocket(make_supervisor, broker, headers) -
     _logs_in_over_websocket(client, {"Origin": WEB_ORIGIN})
 
 
+@pytest.mark.parametrize(
+    ("cors_allowed_origins", "origin"),
+    [(["https://Web.Example.com:443"], WEB_ORIGIN), ([WEB_ORIGIN], "https://WEB.example.com:443")],
+    ids=["listed-mixed-case-with-default-port", "origin-mixed-case-with-default-port"],
+)
+def test_listed_origins_match_mqtt_websocket_regardless_of_case_and_default_port(
+    make_supervisor, cors_allowed_origins, origin
+) -> None:
+    client = TestClient(make_supervisor(cors_allowed_origins=cors_allowed_origins).app)
+
+    _logs_in_over_websocket(client, {"Origin": origin})
+
+
 @pytest.mark.parametrize("headers", [{"Origin": "https://evil.example.com"}, {}], ids=["any", "missing"])
 def test_mqtt_websocket_accepts_any_origin_without_listed_origins(make_supervisor, headers) -> None:
     client = TestClient(make_supervisor().app)
