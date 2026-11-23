@@ -184,3 +184,64 @@ def test_only_static_asset_files_are_served(tmp_path: Path) -> None:
 
     assert all(served.values()), served
     assert unwanted == []
+
+
+def test_home_screen_manifest_is_served_as_a_web_app_manifest(tmp_path: Path) -> None:
+    folder = tmp_path / "webapp"
+    _write_web_app(folder)
+    (folder / "manifest.webmanifest").write_text('{"name": "LocalRock"}\n', encoding="utf-8")
+    client = _client(tmp_path, web_app_folder="webapp")
+
+    response = client.get("/manifest.webmanifest")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/manifest+json"
+    assert response.json() == {"name": "LocalRock"}
+
+
+HOME_SCREEN_ICONS = [
+    "apple-touch-icon.png",
+    "apple-touch-icon-180x180.png",
+    "icon-192.png",
+    "icon-512.png",
+    "favicon.ico",
+]
+
+
+def test_home_screen_icons_at_the_root_are_served_as_images(tmp_path: Path) -> None:
+    folder = tmp_path / "webapp"
+    _write_web_app(folder)
+    for name in HOME_SCREEN_ICONS:
+        (folder / name).write_bytes(b"icon:" + name.encode())
+    client = _client(tmp_path, web_app_folder="webapp")
+
+    served = {name: client.get(f"/{name}") for name in HOME_SCREEN_ICONS}
+
+    assert {name: r.status_code for name, r in served.items()} == {name: 200 for name in HOME_SCREEN_ICONS}
+    assert {name: r.content for name, r in served.items()} == {name: b"icon:" + name.encode() for name in HOME_SCREEN_ICONS}
+    assert served["apple-touch-icon.png"].headers["content-type"] == "image/png"
+    assert served["icon-512.png"].headers["content-type"] == "image/png"
+    assert served["favicon.ico"].headers["content-type"].startswith("image/")
+
+
+HOME_SCREEN_DECOY_PATHS = [
+    "api/v1/manifest.webmanifest",
+    "api/v1/apple-touch-icon.png",
+    "user/homes/manifest.webmanifest",
+    "user/homes/icon-192.png",
+    "admin/manifest.webmanifest",
+    "admin/apple-touch-icon.png",
+]
+
+
+def test_manifests_and_icons_named_like_api_or_admin_routes_are_not_served(tmp_path: Path) -> None:
+    _write_web_app(tmp_path / "webapp")
+    for relative in HOME_SCREEN_DECOY_PATHS:
+        decoy = tmp_path / "webapp" / relative
+        decoy.parent.mkdir(parents=True, exist_ok=True)
+        decoy.write_text("decoy\n", encoding="utf-8")
+    client = _client(tmp_path, web_app_folder="webapp")
+
+    served = [path for path in HOME_SCREEN_DECOY_PATHS if client.get(f"/{path}").text == "decoy\n"]
+
+    assert served == []

@@ -88,15 +88,22 @@ only recorded, not checked.
   these hold:
   - it names a file in the folder;
   - the file is a static asset: `.html`, `.js`, `.mjs`, `.wasm`, `.css`,
-    `.map`, `.txt`, `.png`, `.svg`, `.ico`, `.webp`, `.ttf`, `.otf`, `.woff`
-    or `.woff2`, or a `.cvr`, `.xml` or `.json` file under `composeResources/`;
+    `.map`, `.txt`, `.png`, `.svg`, `.ico`, `.webp`, `.ttf`, `.otf`, `.woff`,
+    `.woff2` or `.webmanifest`, or a `.cvr`, `.xml` or `.json` file under
+    `composeResources/`;
   - no API route answers the path: not the admin dashboard (`/admin` and
     everything under it), not `/mqtt`, not any other registered route, and not
     a Roborock API path (`/region`, `/api/...`, `/user/...` and the rest the
     server knows).
 
   The file gets a content type from its extension (`.wasm` is served as
-  `application/wasm`).
+  `application/wasm`, `.png` as `image/png`). A `.webmanifest` file is always
+  served as `application/manifest+json`, whatever the host's MIME table says.
+
+  This covers what a phone needs to add the Web App to its home screen: the
+  manifest (for example `/manifest.webmanifest`) and the icons at the root
+  (for example `/apple-touch-icon.png`). They follow the same rules, so a
+  manifest or icon at an API or admin path is never served either.
 
 Everything else goes to the existing routes, exactly as with the option unset.
 All other methods reach the API and catch-all routes as before, and files
