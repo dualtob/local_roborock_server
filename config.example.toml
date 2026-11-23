@@ -83,10 +83,3 @@ username = ""
 password = ""
 realm = "api-roborock.example.com"
 ttl = 86400
-
-[web_app]
-# Folder of static Web App files to serve on the HTTPS listener (see
-# docs/web_app.md). A relative path is resolved against this file's folder.
-# Unset or empty serves nothing. The Docker image defaults it to its bundled
-# Web App (/opt/web_app); set folder = "" to turn that off.
-# folder = ""

@@ -35,7 +35,6 @@ from .cors import AllowedOrigins, AllowedOriginsCorsMiddleware
 from .mqtt_websocket import register_mqtt_websocket_route
 from .turn_relay import EmbeddedTurnRelay
 from .standalone_admin import register_standalone_admin_routes
-from .web_app import WebAppMiddleware, web_app_folder
 from .backend import (
     MqttTlsProxy,
     MqttTopicBridge,
@@ -62,7 +61,6 @@ from shared.native_schedule_sync import NativeScheduleSync
 from shared.timer_rpc import TimerRpcInterceptor
 from https_server.routes.user.devices import jobs as schedule_jobs
 from https_server.routes.user.scene import validity as scene_validity
-from https_server.routes.plugin.dispatch import resolve_plugin_zip_source
 from https_server.routes.auth.service import (
     build_login_data_response,
     cloud_login_data_required_response,
@@ -1908,32 +1906,6 @@ class ReleaseSupervisor:
         normalized = str(path or "").rstrip("/")
         return normalized == "/admin" or normalized.startswith("/admin/")
 
-    def _is_protocol_api_path(self, path: str, method: str) -> bool:
-        """True when the protocol handler answers ``path`` with more than its catch-all reply."""
-        clean_path = strip_roborock_prefix(path)
-        if clean_path != path:
-            return True
-        if (
-            self._is_public_protocol_path(clean_path)
-            or self._required_protocol_auth(clean_path) is not None
-            or self._new_connection_flow_for_path(clean_path) is not None
-            or self._is_password_login_path(clean_path)
-            or self._is_password_reset_path(clean_path)
-            or schedule_jobs.match_update(clean_path, method)
-            or resolve_plugin_zip_source(clean_path, {})
-        ):
-            return True
-        for rule in self.endpoint_rules:
-            if rule.name == "catchall":
-                continue
-            try:
-                matched = rule.matcher(clean_path, method)
-            except TypeError:
-                matched = rule.matcher(clean_path)
-            if matched:
-                return True
-        return False
-
     def _register_protocol_routes(self, app: FastAPI) -> None:
         @app.get("/ui/api/health")
         async def ui_health(request: Request) -> JSONResponse:
@@ -1979,9 +1951,6 @@ class ReleaseSupervisor:
                 allowed_origins=allowed_origins,
             )
         self._register_protocol_routes(app)
-        web_app_dir = web_app_folder(self.config.web_app.folder, self.paths.config_file)
-        if web_app_dir is not None:
-            app.add_middleware(WebAppMiddleware, folder=web_app_dir, is_api_path=self._is_protocol_api_path)
         if allowed_origins:
             app.add_middleware(AllowedOriginsCorsMiddleware, allowed_origins=allowed_origins)
         return app
