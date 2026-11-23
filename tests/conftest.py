@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 import sys
 
@@ -13,6 +14,9 @@ if src_str not in sys.path:
 
 from roborock_local_server.security import hash_password
 
+# A Web App origin, as a browser would send it in its Origin header.
+WEB_ORIGIN = "https://web.example.com"
+
 
 def write_release_config(
     tmp_path: Path,
@@ -27,12 +31,17 @@ def write_release_config(
     new_connections_enabled: bool = True,
     protocol_login_email: str = "user@example.com",
     protocol_login_pin: str = "123456",
+    network_settings: dict[str, object] | None = None,
 ) -> Path:
     cert_dir = tmp_path / "certs"
     cert_dir.mkdir(parents=True, exist_ok=True)
     (cert_dir / "fullchain.pem").write_text("test-cert\n", encoding="utf-8")
     (cert_dir / "privkey.pem").write_text("test-key\n", encoding="utf-8")
 
+    # JSON spells strings, numbers, booleans and lists the way TOML does.
+    extra_network = "".join(
+        f"\n{name} = {json.dumps(value)}" for name, value in (network_settings or {}).items()
+    )
     config_file = tmp_path / "config.toml"
     config_file.write_text(
         f"""
@@ -40,7 +49,7 @@ def write_release_config(
 stack_fqdn = "{stack_fqdn}"
 listener_mode = "{listener_mode}"
 https_port = {https_port}
-mqtt_tls_port = {mqtt_tls_port}
+mqtt_tls_port = {mqtt_tls_port}{extra_network}
 
 [broker]
 mode = "{broker_mode}"

@@ -22,7 +22,7 @@ from websockets.sync.client import connect as websocket_connect
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from conftest import write_release_config
+from conftest import WEB_ORIGIN, write_release_config
 from roborock_local_server.config import load_config, resolve_paths
 from roborock_local_server.server import ReleaseSupervisor
 
@@ -200,21 +200,21 @@ def _write_config(
     listener_mode: str,
     cors_allowed_origins: list[str] | None = None,
 ) -> Path:
+    network_settings: dict[str, object] = {"bind_host": "127.0.0.1"}
+    if mqtt_websocket_enabled is not None:
+        network_settings["mqtt_websocket_enabled"] = mqtt_websocket_enabled
+    if cors_allowed_origins is not None:
+        network_settings["cors_allowed_origins"] = cors_allowed_origins
     config_file = write_release_config(
         tmp_path,
         listener_mode=listener_mode,
         https_port=_free_port(),
         mqtt_tls_port=_free_port(),
+        network_settings=network_settings,
     )
     if listener_mode == "local_tls":
         _write_self_signed_cert(tmp_path / "certs" / "fullchain.pem", tmp_path / "certs" / "privkey.pem")
     text = config_file.read_text(encoding="utf-8").replace("port = 1883", f"port = {broker_port}")
-    network_settings = 'bind_host = "127.0.0.1"\n'
-    if mqtt_websocket_enabled is not None:
-        network_settings += f"mqtt_websocket_enabled = {'true' if mqtt_websocket_enabled else 'false'}\n"
-    if cors_allowed_origins is not None:
-        network_settings += f"cors_allowed_origins = {json.dumps(cors_allowed_origins)}\n"
-    text = text.replace("[network]\n", "[network]\n" + network_settings, 1)
     config_file.write_text(text, encoding="utf-8")
     return config_file
 
@@ -462,10 +462,6 @@ def test_app_login_is_refused_when_protocol_auth_is_off_just_like_mqtt_over_tls(
             mqtt.receive()
 
     assert broker.connects == 0
-
-
-
-WEB_ORIGIN = "https://web.example.com"
 
 
 def _logs_in_over_websocket(client: TestClient, headers: dict[str, str]) -> None:

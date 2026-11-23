@@ -3,25 +3,18 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from conftest import write_release_config
+from conftest import WEB_ORIGIN, write_release_config
 from roborock_local_server.config import load_config, resolve_paths
 from roborock_local_server.server import ReleaseSupervisor
 
-WEB_ORIGIN = "https://web.example.com"
 API_PATH = "/api/v1/activity/latest"
 
 
 @pytest.fixture
 def make_client(tmp_path):
     def make(*, cors_allowed_origins: list[str] | None = None) -> TestClient:
-        config_file = write_release_config(tmp_path, listener_mode="external_tls")
-        if cors_allowed_origins is not None:
-            listed = ", ".join(f'"{origin}"' for origin in cors_allowed_origins)
-            text = config_file.read_text(encoding="utf-8")
-            config_file.write_text(
-                text.replace("[network]\n", f"[network]\ncors_allowed_origins = [{listed}]\n", 1),
-                encoding="utf-8",
-            )
+        network_settings = {} if cors_allowed_origins is None else {"cors_allowed_origins": cors_allowed_origins}
+        config_file = write_release_config(tmp_path, listener_mode="external_tls", network_settings=network_settings)
         config = load_config(config_file)
         supervisor = ReleaseSupervisor(config=config, paths=resolve_paths(config_file, config))
         return TestClient(supervisor.app)

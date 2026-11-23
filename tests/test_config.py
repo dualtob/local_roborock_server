@@ -598,20 +598,15 @@ def test_cors_allowed_origins_are_empty_by_default(tmp_path):
 
 
 def test_cors_allowed_origins_load_from_config(tmp_path):
-    path = write_release_config(tmp_path)
-    path.write_text(
-        path.read_text().replace(
-            "[network]\n",
-            '[network]\ncors_allowed_origins = ["https://web.example.com", "http://localhost:8080/"]\n',
-            1,
-        )
+    path = write_release_config(
+        tmp_path,
+        network_settings={"cors_allowed_origins": ["https://web.example.com", "http://localhost:8080/"]},
     )
     assert load_config(path).network.cors_allowed_origins == ("https://web.example.com", "http://localhost:8080")
 
 
 @pytest.mark.parametrize("origin", ["web.example.com", "https://web.example.com/app", "*", "ftp://web.example.com"])
 def test_cors_allowed_origins_reject_anything_but_an_origin(tmp_path, origin):
-    path = write_release_config(tmp_path)
-    path.write_text(path.read_text().replace("[network]\n", f'[network]\ncors_allowed_origins = ["{origin}"]\n', 1))
+    path = write_release_config(tmp_path, network_settings={"cors_allowed_origins": [origin]})
     with pytest.raises(ValueError, match=f"network.cors_allowed_origins entry '{origin}'"):
         load_config(path)
