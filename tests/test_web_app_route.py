@@ -122,3 +122,65 @@ def test_without_the_option_a_browser_at_root_gets_the_protocol_answer(tmp_path:
 
     assert response.headers["content-type"].startswith("application/json")
     assert asset.headers["content-type"].startswith("application/json")
+
+
+DECOY_PATHS = [
+    "region",
+    "time",
+    "location",
+    "nc/prepare",
+    "api/v1/getUrlByEmail",
+    "api/v1/loginWithCode",
+    "api/v1/decoy.js",
+    "user/homes/12345.json",
+    "ui/api/health",
+    "mqtt",
+]
+
+
+def test_files_named_like_api_routes_are_not_served(tmp_path: Path) -> None:
+    _write_web_app(tmp_path / "webapp")
+    for relative in DECOY_PATHS:
+        decoy = tmp_path / "webapp" / relative
+        decoy.parent.mkdir(parents=True, exist_ok=True)
+        decoy.write_text("decoy\n", encoding="utf-8")
+    client = _client(tmp_path, web_app_folder="webapp")
+
+    served = [path for path in DECOY_PATHS if client.get(f"/{path}").text == "decoy\n"]
+
+    assert served == []
+
+
+def test_only_static_asset_files_are_served(tmp_path: Path) -> None:
+    folder = tmp_path / "webapp"
+    _write_web_app(folder)
+    resources = folder / "composeResources" / "com.kodraliu.localrock.resources"
+    (resources / "values").mkdir(parents=True)
+    (resources / "values" / "strings.commonMain.cvr").write_text("cvr\n", encoding="utf-8")
+    (resources / "drawable").mkdir()
+    (resources / "drawable" / "app_icon.xml").write_text("<vector/>\n", encoding="utf-8")
+    (folder / "localrock.js.map").write_text("{}\n", encoding="utf-8")
+    (folder / "styles.css").write_text("body{}\n", encoding="utf-8")
+    (folder / "font.woff2").write_bytes(b"wOF2")
+    for unwanted in ("notes", "config.toml", "secrets.json", "feed.xml", "run.sh"):
+        (folder / unwanted).write_text("unwanted\n", encoding="utf-8")
+    client = _client(tmp_path, web_app_folder="webapp")
+
+    served = {
+        path: client.get(f"/{path}").status_code == 200 and client.get(f"/{path}").text != "unwanted\n"
+        for path in (
+            "composeResources/com.kodraliu.localrock.resources/values/strings.commonMain.cvr",
+            "composeResources/com.kodraliu.localrock.resources/drawable/app_icon.xml",
+            "localrock.js.map",
+            "styles.css",
+            "font.woff2",
+        )
+    }
+    unwanted = [
+        path
+        for path in ("notes", "config.toml", "secrets.json", "feed.xml", "run.sh")
+        if client.get(f"/{path}").text == "unwanted\n"
+    ]
+
+    assert all(served.values()), served
+    assert unwanted == []

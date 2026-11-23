@@ -5,9 +5,12 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
+import shutil
 import socket
 import ssl
+import subprocess
 import threading
+import time
 from pathlib import Path
 
 from cryptography import x509
@@ -246,8 +249,8 @@ def broker():
     fake.stop()
 
 
-@pytest.fixture
-def make_supervisor(tmp_path, broker):
+@contextmanager
+def _supervisors(tmp_path: Path, broker_port: int):
     started: list[ReleaseSupervisor] = []
 
     def make(
@@ -258,7 +261,7 @@ def make_supervisor(tmp_path, broker):
     ) -> ReleaseSupervisor:
         config_file = _write_config(
             tmp_path,
-            broker_port=broker.port,
+            broker_port=broker_port,
             mqtt_websocket_enabled=mqtt_websocket_enabled,
             listener_mode=listener_mode,
         )
@@ -273,10 +276,51 @@ def make_supervisor(tmp_path, broker):
         started.append(supervisor)
         return supervisor
 
-    yield make
-    for supervisor in started:
-        if supervisor._mqtt_proxy is not None:
-            supervisor._mqtt_proxy.stop()
+    try:
+        yield make
+    finally:
+        for supervisor in started:
+            if supervisor._mqtt_proxy is not None:
+                supervisor._mqtt_proxy.stop()
+
+
+@pytest.fixture
+def make_supervisor(tmp_path, broker):
+    with _supervisors(tmp_path, broker.port) as make:
+        yield make
+
+
+def _mosquitto_binary() -> str | None:
+    homebrew = Path("/opt/homebrew/opt/mosquitto/sbin/mosquitto")
+    if homebrew.is_file():
+        return str(homebrew)
+    return shutil.which("mosquitto")
+
+
+@pytest.fixture
+def mosquitto(tmp_path):
+    """A real Mosquitto on a free local port, configured like the embedded broker."""
+    binary = _mosquitto_binary()
+    if binary is None:
+        pytest.skip("Mosquitto is not installed")
+    port = _free_port()
+    config = tmp_path / "mosquitto.conf"
+    config.write_text(f"listener {port} 127.0.0.1\nallow_anonymous true\n", encoding="utf-8")
+    process = subprocess.Popen([binary, "-c", str(config)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        deadline = time.monotonic() + 10
+        while True:
+            try:
+                socket.create_connection(("127.0.0.1", port), timeout=1).close()
+                break
+            except OSError:
+                if process.poll() is not None or time.monotonic() > deadline:
+                    pytest.fail("Mosquitto did not start")
+                time.sleep(0.05)
+        yield port
+    finally:
+        process.terminate()
+        process.wait(timeout=5)
 
 
 class _WebSocketMqtt:
@@ -315,6 +359,32 @@ def test_app_login_round_trips_publish_and_subscribe_over_websocket(make_supervi
         mqtt.send(b"\xe0\x00")  # DISCONNECT
         with pytest.raises(WebSocketDisconnect):
             mqtt.receive()
+
+
+def test_mqtt_websocket_round_trips_through_a_real_mosquitto(tmp_path, mosquitto) -> None:
+    topic = "rr/m/o/user/abc/123"
+    with _supervisors(tmp_path, mosquitto) as make:
+        client = TestClient(make().app)
+
+        with client.websocket_connect("/mqtt", subprotocols=["mqtt"]) as websocket:
+            mqtt = _WebSocketMqtt(websocket)
+            mqtt.send(_connect_packet(client_id="web-app", username=APP_MQTT_USERNAME, password=APP_MQTT_PASSWORD))
+            assert mqtt.receive() == b"\x20\x02\x00\x00"
+            mqtt.send(_subscribe_packet(packet_id=1, topic=topic))
+            assert mqtt.receive() == b"\x90\x03\x00\x01\x00"
+            publish = _publish_packet(topic=topic, payload=b"hello robot")
+            mqtt.send(publish)
+            assert mqtt.receive() == publish
+            mqtt.send(b"\xe0\x00")  # DISCONNECT
+            with pytest.raises(WebSocketDisconnect):
+                mqtt.receive()
+
+        with client.websocket_connect("/mqtt", subprotocols=["mqtt"]) as websocket:
+            mqtt = _WebSocketMqtt(websocket)
+            mqtt.send(_connect_packet(client_id="web-app", username=APP_MQTT_USERNAME, password="wrong-password"))
+            assert mqtt.receive() == b"\x20\x02\x00\x05"
+            with pytest.raises(WebSocketDisconnect):
+                mqtt.receive()
 
 
 def test_wrong_password_is_refused_and_never_reaches_the_broker(make_supervisor, broker) -> None:

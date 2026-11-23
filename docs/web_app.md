@@ -79,22 +79,27 @@ only recorded, not checked.
 
 ## What gets served
 
-- A browser opening `https://<stack_fqdn>:<https_port>/` gets the folder's
-  `index.html`.
-- Any other `GET` or `HEAD` path that names a file in the folder gets that
-  file, with a content type from its extension (`.wasm` is served as
+- `/` serves the Web App's `index.html` only for requests whose `Accept`
+  header includes `text/html`, as a browser's page load does. `/` is also the
+  robots' region bootstrap, and robots and the Roborock App don't send
+  `text/html`, so they keep getting the region answer, exactly as without the
+  Web App.
+- Any other `GET` or `HEAD` path is served from the folder only if all of
+  these hold:
+  - it names a file in the folder;
+  - the file is a static asset: `.html`, `.js`, `.mjs`, `.wasm`, `.css`,
+    `.map`, `.txt`, `.png`, `.svg`, `.ico`, `.webp`, `.ttf`, `.otf`, `.woff`
+    or `.woff2`, or a `.cvr`, `.xml` or `.json` file under `composeResources/`;
+  - no API route answers the path: not the admin dashboard (`/admin` and
+    everything under it), not `/mqtt`, not any other registered route, and not
+    a Roborock API path (`/region`, `/api/...`, `/user/...` and the rest the
+    server knows).
+
+  The file gets a content type from its extension (`.wasm` is served as
   `application/wasm`).
 
-Everything else goes to the existing routes, exactly as with the option unset:
-
-- `/` is also the robots' region bootstrap, so the index is only served when
-  the request's `Accept` header names `text/html`, as a browser's page load
-  does. Robots and the Roborock App keep getting the region answer.
-- `/admin` and everything under it always go to the admin dashboard.
-- Paths that don't name a file in the folder, and all other methods, reach the
-  API and catch-all routes as before.
-- Files outside the folder are never served.
-
-Put only the Web App's build output in the folder: a file whose path matches an
-API route (for example a file named `region`) would answer `GET` requests for
-that route.
+Everything else goes to the existing routes, exactly as with the option unset.
+All other methods reach the API and catch-all routes as before, and files
+outside the folder are never served. So a stray file in the folder, such as
+one named `region` or `api/v1/login.js`, can never answer for the Robots' or
+the App's routes.

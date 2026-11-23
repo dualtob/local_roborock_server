@@ -265,6 +265,13 @@ WEB_APP_FOLDER_ENV = "ROBOROCK_SERVER_WEB_APP_FOLDER"
 MQTT_WEBSOCKET_ENABLED_ENV = "ROBOROCK_SERVER_MQTT_WEBSOCKET_ENABLED"
 
 
+def _toml_env_or_default(section: dict[str, object], key: str, env_name: str, default: object) -> object:
+    """``section[key]`` if config.toml sets it, else the environment variable, else ``default``."""
+    if key in section:
+        return section[key]
+    return os.environ.get(env_name, default)
+
+
 def load_config(path: str | Path) -> AppConfig:
     config_path = Path(path).resolve()
     parsed = tomllib.loads(config_path.read_text(encoding="utf-8"))
@@ -331,7 +338,7 @@ def load_config(path: str | Path) -> AppConfig:
                 "network.timezone",
             ),
             mqtt_websocket_enabled=_as_bool(
-                network.get("mqtt_websocket_enabled", os.environ.get(MQTT_WEBSOCKET_ENABLED_ENV)),
+                _toml_env_or_default(network, "mqtt_websocket_enabled", MQTT_WEBSOCKET_ENABLED_ENV, False),
                 False,
             ),
         ),
@@ -390,7 +397,7 @@ def load_config(path: str | Path) -> AppConfig:
             ttl=_as_int(turn.get("ttl"), "turn.ttl", 86400),
         ),
         web_app=WebAppConfig(
-            folder=str(web_app.get("folder", os.environ.get(WEB_APP_FOLDER_ENV, ""))).strip()
+            folder=str(_toml_env_or_default(web_app, "folder", WEB_APP_FOLDER_ENV, "")).strip()
         ),
     )
 
