@@ -68,6 +68,8 @@ git pull
 docker compose up -d --build
 ```
 
+The Web App in the image is the release pinned as `WEB_APP_VERSION` in `compose.yaml`. To move to another Web App release, change that tag and run `docker compose up -d --build`. See [Web App](web_app.md#choosing-the-release).
+
 ## Home Assistant Add-on
 
 Update the add-on from the Home Assistant Add-on Store, then restart the add-on.

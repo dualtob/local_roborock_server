@@ -57,6 +57,7 @@ nav:
   - Integrations:
     - Mobile App Options: roborock_app.md
     - Camera (Live Video): camera.md
+    - Web App: web_app.md
   - Reference:
     - Log Retention: logging.md
     - Last-Known State: last_known_state.md
@@ -67,5 +68,6 @@ nav:
     - Compatibility Report Details: compatibility_reports.md
     - Reverse Proxy: reverse_proxy.md
     - Custom MQTT: custom_mqtt.md
+    - MQTT over WebSockets: mqtt_websocket.md
     - Custom Certificate Management: custom_cert_management.md
     - Technical Writeup: technical_writeup.md

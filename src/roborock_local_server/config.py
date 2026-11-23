@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import ipaddress
+import os
 from pathlib import Path
 import re
 import tomllib
@@ -27,6 +28,7 @@ class NetworkConfig:
     mqtt_client_id: str
     trusted_proxies: tuple[str, ...] = ("127.0.0.1", "::1")
     timezone: str = ""
+    mqtt_websocket_enabled: bool = False
 
 
 @dataclass(frozen=True)
@@ -105,6 +107,13 @@ class TurnConfig:
 
 
 @dataclass(frozen=True)
+class WebAppConfig:
+    """Folder of static Web App files served on the HTTPS listener; off when empty."""
+
+    folder: str = ""
+
+
+@dataclass(frozen=True)
 class AppConfig:
     network: NetworkConfig
     broker: BrokerConfig
@@ -113,6 +122,7 @@ class AppConfig:
     admin: AdminConfig
     turn: TurnConfig = TurnConfig()
     logging: LoggingConfig = LoggingConfig()
+    web_app: WebAppConfig = WebAppConfig()
 
 
 @dataclass(frozen=True)
@@ -249,6 +259,19 @@ def _as_bool(value: object, default: bool) -> bool:
     return bool(value)
 
 
+# Defaults the Docker image sets for keys a config.toml leaves out. A key that
+# is present in config.toml always wins, so existing configs keep their meaning.
+WEB_APP_FOLDER_ENV = "ROBOROCK_SERVER_WEB_APP_FOLDER"
+MQTT_WEBSOCKET_ENABLED_ENV = "ROBOROCK_SERVER_MQTT_WEBSOCKET_ENABLED"
+
+
+def _toml_env_or_default(section: dict[str, object], key: str, env_name: str, default: object) -> object:
+    """``section[key]`` if config.toml sets it, else the environment variable, else ``default``."""
+    if key in section:
+        return section[key]
+    return os.environ.get(env_name, default)
+
+
 def load_config(path: str | Path) -> AppConfig:
     config_path = Path(path).resolve()
     parsed = tomllib.loads(config_path.read_text(encoding="utf-8"))
@@ -260,6 +283,7 @@ def load_config(path: str | Path) -> AppConfig:
     tls = _get_section(parsed, "tls")
     admin = _get_section(parsed, "admin")
     turn = _get_section(parsed, "turn")
+    web_app = _get_section(parsed, "web_app")
     turn_mode = str(turn.get("mode", "external" if _as_bool(turn.get("enabled"), False) else "disabled")).strip().lower()
     broker_mode = str(broker.get("mode", "embedded")).strip().lower()
     if broker_mode not in {"embedded", "external"}:
@@ -312,6 +336,10 @@ def load_config(path: str | Path) -> AppConfig:
             timezone=_as_timezone(
                 network.get("timezone", "") or parsed.get("timezone", ""),
                 "network.timezone",
+            ),
+            mqtt_websocket_enabled=_as_bool(
+                _toml_env_or_default(network, "mqtt_websocket_enabled", MQTT_WEBSOCKET_ENABLED_ENV, False),
+                False,
             ),
         ),
         broker=BrokerConfig(
@@ -367,6 +395,9 @@ def load_config(path: str | Path) -> AppConfig:
             password=str(turn.get("password", "")).strip(),
             realm=str(turn.get("realm", "") or turn.get("host", "")).strip(),
             ttl=_as_int(turn.get("ttl"), "turn.ttl", 86400),
+        ),
+        web_app=WebAppConfig(
+            folder=str(_toml_env_or_default(web_app, "folder", WEB_APP_FOLDER_ENV, "")).strip()
         ),
     )
 
