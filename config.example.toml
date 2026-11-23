@@ -22,6 +22,11 @@ region = "us"
 # (subprotocol "mqtt"), with the same logins as MQTT over TLS. See docs/mqtt_websocket.md.
 # Off by default; the Docker image turns it on unless this key is set here.
 # mqtt_websocket_enabled = false
+# Web origins allowed to call the server from a browser, e.g. a web client served
+# from its own hostname. Listed origins get CORS headers on the HTTPS API, and only
+# they may open MQTT over WebSockets at /mqtt. Empty by default: no CORS headers,
+# and /mqtt accepts any origin. See docs/mqtt_websocket.md.
+# cors_allowed_origins = ["https://web.example.com"]
 
 [broker]
 # Set mode = "external" and host/port to your broker if you do not want embedded Mosquitto.

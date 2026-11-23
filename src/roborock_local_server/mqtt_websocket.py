@@ -15,6 +15,7 @@ from fastapi import FastAPI, WebSocket
 from starlette.websockets import WebSocketDisconnect
 
 from .backend import MqttTlsProxy
+from .cors import AllowedOrigins, request_origin
 
 MQTT_WEBSOCKET_PATH = "/mqtt"
 MQTT_SUBPROTOCOL = "mqtt"
@@ -23,13 +24,26 @@ _READ_CHUNK_BYTES = 4096
 _CLOSE_TRY_AGAIN_LATER = 1013
 
 
-def register_mqtt_websocket_route(app: FastAPI, *, mqtt_proxy: Callable[[], MqttTlsProxy | None]) -> None:
-    """Accept MQTT over WebSockets at /mqtt and relay it through the running MQTT proxy."""
+def register_mqtt_websocket_route(
+    app: FastAPI,
+    *,
+    mqtt_proxy: Callable[[], MqttTlsProxy | None],
+    allowed_origins: AllowedOrigins = AllowedOrigins(()),
+) -> None:
+    """Accept MQTT over WebSockets at /mqtt and relay it through the running MQTT proxy.
+
+    With ``allowed_origins`` set, only browser pages from those origins may connect.
+    Browsers don't apply CORS to WebSockets, so this check is what keeps other websites
+    from reaching the broker through a visitor's browser.
+    """
 
     @app.websocket(MQTT_WEBSOCKET_PATH)
     async def mqtt_websocket(websocket: WebSocket) -> None:
         if MQTT_SUBPROTOCOL not in websocket.scope.get("subprotocols", []):
             # Closing before accept answers the upgrade with HTTP 403.
+            await websocket.close()
+            return
+        if allowed_origins and not allowed_origins.allows(request_origin(websocket.scope)):
             await websocket.close()
             return
         proxy = mqtt_proxy()

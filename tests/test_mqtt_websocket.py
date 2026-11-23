@@ -22,7 +22,7 @@ from websockets.sync.client import connect as websocket_connect
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from conftest import write_release_config
+from conftest import WEB_ORIGIN, write_release_config
 from roborock_local_server.config import load_config, resolve_paths
 from roborock_local_server.server import ReleaseSupervisor
 
@@ -198,20 +198,23 @@ def _write_config(
     broker_port: int,
     mqtt_websocket_enabled: bool | None,
     listener_mode: str,
+    cors_allowed_origins: list[str] | None = None,
 ) -> Path:
+    network_settings: dict[str, object] = {"bind_host": "127.0.0.1"}
+    if mqtt_websocket_enabled is not None:
+        network_settings["mqtt_websocket_enabled"] = mqtt_websocket_enabled
+    if cors_allowed_origins is not None:
+        network_settings["cors_allowed_origins"] = cors_allowed_origins
     config_file = write_release_config(
         tmp_path,
         listener_mode=listener_mode,
         https_port=_free_port(),
         mqtt_tls_port=_free_port(),
+        network_settings=network_settings,
     )
     if listener_mode == "local_tls":
         _write_self_signed_cert(tmp_path / "certs" / "fullchain.pem", tmp_path / "certs" / "privkey.pem")
     text = config_file.read_text(encoding="utf-8").replace("port = 1883", f"port = {broker_port}")
-    network_settings = 'bind_host = "127.0.0.1"\n'
-    if mqtt_websocket_enabled is not None:
-        network_settings += f"mqtt_websocket_enabled = {'true' if mqtt_websocket_enabled else 'false'}\n"
-    text = text.replace("[network]\n", "[network]\n" + network_settings, 1)
     config_file.write_text(text, encoding="utf-8")
     return config_file
 
@@ -258,12 +261,14 @@ def _supervisors(tmp_path: Path, broker_port: int):
         mqtt_websocket_enabled: bool | None = True,
         listener_mode: str = "external_tls",
         web_app_folder: str | None = None,
+        cors_allowed_origins: list[str] | None = None,
     ) -> ReleaseSupervisor:
         config_file = _write_config(
             tmp_path,
             broker_port=broker_port,
             mqtt_websocket_enabled=mqtt_websocket_enabled,
             listener_mode=listener_mode,
+            cors_allowed_origins=cors_allowed_origins,
         )
         if web_app_folder is not None:
             with config_file.open("a", encoding="utf-8") as handle:
@@ -457,6 +462,53 @@ def test_app_login_is_refused_when_protocol_auth_is_off_just_like_mqtt_over_tls(
             mqtt.receive()
 
     assert broker.connects == 0
+
+
+def _logs_in_over_websocket(client: TestClient, headers: dict[str, str]) -> None:
+    with client.websocket_connect("/mqtt", subprotocols=["mqtt"], headers=headers) as websocket:
+        mqtt = _WebSocketMqtt(websocket)
+        mqtt.send(_connect_packet(client_id="web-app", username=APP_MQTT_USERNAME, password=APP_MQTT_PASSWORD))
+        assert mqtt.receive() == b"\x20\x02\x00\x00"
+        mqtt.send(b"\xe0\x00")  # DISCONNECT
+        with pytest.raises(WebSocketDisconnect):
+            mqtt.receive()
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [{"Origin": "https://evil.example.com"}, {"Origin": "http://web.example.com"}, {}],
+    ids=["unlisted", "other-scheme", "missing"],
+)
+def test_listed_origins_guard_mqtt_websocket(make_supervisor, broker, headers) -> None:
+    supervisor = make_supervisor(cors_allowed_origins=[WEB_ORIGIN])
+    client = TestClient(supervisor.app)
+
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect("/mqtt", subprotocols=["mqtt"], headers=headers):
+            pass
+    assert broker.connects == 0
+
+    _logs_in_over_websocket(client, {"Origin": WEB_ORIGIN})
+
+
+@pytest.mark.parametrize(
+    ("cors_allowed_origins", "origin"),
+    [(["https://Web.Example.com:443"], WEB_ORIGIN), ([WEB_ORIGIN], "https://WEB.example.com:443")],
+    ids=["listed-mixed-case-with-default-port", "origin-mixed-case-with-default-port"],
+)
+def test_listed_origins_match_mqtt_websocket_regardless_of_case_and_default_port(
+    make_supervisor, cors_allowed_origins, origin
+) -> None:
+    client = TestClient(make_supervisor(cors_allowed_origins=cors_allowed_origins).app)
+
+    _logs_in_over_websocket(client, {"Origin": origin})
+
+
+@pytest.mark.parametrize("headers", [{"Origin": "https://evil.example.com"}, {}], ids=["any", "missing"])
+def test_mqtt_websocket_accepts_any_origin_without_listed_origins(make_supervisor, headers) -> None:
+    client = TestClient(make_supervisor().app)
+
+    _logs_in_over_websocket(client, headers)
 
 
 @contextmanager
