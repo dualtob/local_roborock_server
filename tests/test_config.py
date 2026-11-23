@@ -557,3 +557,37 @@ def test_load_config_rejects_invalid_trusted_proxy(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="network.trusted_proxies entry 'traefik'"):
         load_config(config_file)
+
+
+def test_container_default_turns_on_web_app_folder_when_config_leaves_it_unset(tmp_path, monkeypatch):
+    monkeypatch.setenv("ROBOROCK_SERVER_WEB_APP_FOLDER", "/opt/web_app")
+    path = write_release_config(tmp_path)
+    assert load_config(path).web_app.folder == "/opt/web_app"
+
+
+def test_config_web_app_folder_wins_over_container_default(tmp_path, monkeypatch):
+    monkeypatch.setenv("ROBOROCK_SERVER_WEB_APP_FOLDER", "/opt/web_app")
+    path = write_release_config(tmp_path)
+    path.write_text(path.read_text() + '\n[web_app]\nfolder = ""\n')
+    assert load_config(path).web_app.folder == ""
+
+
+def test_container_default_turns_on_mqtt_websocket_when_config_leaves_it_unset(tmp_path, monkeypatch):
+    monkeypatch.setenv("ROBOROCK_SERVER_MQTT_WEBSOCKET_ENABLED", "true")
+    path = write_release_config(tmp_path)
+    assert load_config(path).network.mqtt_websocket_enabled is True
+
+
+def test_config_mqtt_websocket_setting_wins_over_container_default(tmp_path, monkeypatch):
+    monkeypatch.setenv("ROBOROCK_SERVER_MQTT_WEBSOCKET_ENABLED", "true")
+    path = write_release_config(tmp_path)
+    path.write_text(path.read_text().replace("[network]\n", "[network]\nmqtt_websocket_enabled = false\n", 1))
+    assert load_config(path).network.mqtt_websocket_enabled is False
+
+
+def test_web_app_and_mqtt_websocket_stay_off_without_container_defaults(tmp_path, monkeypatch):
+    monkeypatch.delenv("ROBOROCK_SERVER_WEB_APP_FOLDER", raising=False)
+    monkeypatch.delenv("ROBOROCK_SERVER_MQTT_WEBSOCKET_ENABLED", raising=False)
+    config = load_config(write_release_config(tmp_path))
+    assert config.web_app.folder == ""
+    assert config.network.mqtt_websocket_enabled is False

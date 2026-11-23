@@ -137,6 +137,8 @@ If your model already has certificate notes on the tested-vacuums page, follow t
    docker compose up -d --build
    ```
 
+   The build also downloads the LocalRock Web App release pinned in `compose.yaml`, so the browser app is served at `https://api-roborock.example.com:555/`. See [Web App](web_app.md#in-the-docker-image).
+
    For reverse proxy setups, keep `network.https_port` and `network.mqtt_tls_port` set to the backend listener ports and use `network.advertised_https_port` / `network.advertised_mqtt_tls_port` for the public ports.
 
 ## Method 2: Home Assistant Add-on

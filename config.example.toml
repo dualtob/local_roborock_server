@@ -20,6 +20,7 @@ region = "us"
 # timezone = "Europe/Berlin"
 # MQTT over WebSockets for browser clients at wss://<stack_fqdn>:<https_port>/mqtt
 # (subprotocol "mqtt"), with the same logins as MQTT over TLS. See docs/mqtt_websocket.md.
+# Off by default; the Docker image turns it on unless this key is set here.
 # mqtt_websocket_enabled = false
 
 [broker]
@@ -81,5 +82,6 @@ ttl = 86400
 [web_app]
 # Folder of static Web App files to serve on the HTTPS listener (see
 # docs/web_app.md). A relative path is resolved against this file's folder.
-# Leave empty (the default) to serve nothing.
-folder = ""
+# Unset or empty serves nothing. The Docker image defaults it to its bundled
+# Web App (/opt/web_app); set folder = "" to turn that off.
+# folder = ""

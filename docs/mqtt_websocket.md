@@ -1,6 +1,6 @@
 # MQTT over WebSockets
 
-Browsers can't open raw TCP sockets, so a browser client such as the LocalRock Web App can't use MQTT over TLS on `mqtt_tls_port`. The server can also accept MQTT over WebSockets on its HTTPS port instead. It's off by default.
+Browsers can't open raw TCP sockets, so a browser client such as the LocalRock Web App can't use MQTT over TLS on `mqtt_tls_port`. The server can also accept MQTT over WebSockets on its HTTPS port instead. It's off by default, except in the Docker image (see below).
 
 ## Turning It On
 
@@ -10,6 +10,11 @@ mqtt_websocket_enabled = true
 ```
 
 Restart the stack after changing it.
+
+The Docker image built from this fork turns it on whenever `config.toml` leaves
+`mqtt_websocket_enabled` out (through `ROBOROCK_SERVER_MQTT_WEBSOCKET_ENABLED=true`;
+see [Web App](web_app.md#in-the-docker-image)). Set `mqtt_websocket_enabled = false`
+to turn it off there.
 
 ## Connecting
 

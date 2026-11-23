@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import ipaddress
+import os
 from pathlib import Path
 import re
 import tomllib
@@ -258,6 +259,12 @@ def _as_bool(value: object, default: bool) -> bool:
     return bool(value)
 
 
+# Defaults the Docker image sets for keys a config.toml leaves out. A key that
+# is present in config.toml always wins, so existing configs keep their meaning.
+WEB_APP_FOLDER_ENV = "ROBOROCK_SERVER_WEB_APP_FOLDER"
+MQTT_WEBSOCKET_ENABLED_ENV = "ROBOROCK_SERVER_MQTT_WEBSOCKET_ENABLED"
+
+
 def load_config(path: str | Path) -> AppConfig:
     config_path = Path(path).resolve()
     parsed = tomllib.loads(config_path.read_text(encoding="utf-8"))
@@ -323,7 +330,10 @@ def load_config(path: str | Path) -> AppConfig:
                 network.get("timezone", "") or parsed.get("timezone", ""),
                 "network.timezone",
             ),
-            mqtt_websocket_enabled=_as_bool(network.get("mqtt_websocket_enabled"), False),
+            mqtt_websocket_enabled=_as_bool(
+                network.get("mqtt_websocket_enabled", os.environ.get(MQTT_WEBSOCKET_ENABLED_ENV)),
+                False,
+            ),
         ),
         broker=BrokerConfig(
             mode=broker_mode,
@@ -379,7 +389,9 @@ def load_config(path: str | Path) -> AppConfig:
             realm=str(turn.get("realm", "") or turn.get("host", "")).strip(),
             ttl=_as_int(turn.get("ttl"), "turn.ttl", 86400),
         ),
-        web_app=WebAppConfig(folder=str(web_app.get("folder", "")).strip()),
+        web_app=WebAppConfig(
+            folder=str(web_app.get("folder", os.environ.get(WEB_APP_FOLDER_ENV, ""))).strip()
+        ),
     )
 
     if len(config.admin.session_secret) < 24:

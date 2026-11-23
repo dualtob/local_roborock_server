@@ -3,6 +3,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # The LocalRock Web App release baked into the image (served at /).
+        # Change it and run `docker compose build` to update the Web App.
+        WEB_APP_VERSION: web-v0.1.0
     container_name: roborock-local-server
     restart: unless-stopped
     ports:
