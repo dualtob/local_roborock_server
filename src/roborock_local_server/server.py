@@ -34,6 +34,7 @@ from .log_retention import configure_jsonl_logging
 from .mqtt_websocket import register_mqtt_websocket_route
 from .turn_relay import EmbeddedTurnRelay
 from .standalone_admin import register_standalone_admin_routes
+from .web_app import WebAppMiddleware, web_app_folder
 from .backend import (
     MqttTlsProxy,
     MqttTopicBridge,
@@ -1945,6 +1946,9 @@ class ReleaseSupervisor:
         if self.config.network.mqtt_websocket_enabled:
             register_mqtt_websocket_route(app, mqtt_proxy=lambda: self._mqtt_proxy)
         self._register_protocol_routes(app)
+        web_app_dir = web_app_folder(self.config.web_app.folder, self.paths.config_file)
+        if web_app_dir is not None:
+            app.add_middleware(WebAppMiddleware, folder=web_app_dir)
         return app
 
     def _uses_local_tls(self) -> bool:
