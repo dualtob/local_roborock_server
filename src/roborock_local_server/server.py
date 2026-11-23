@@ -31,6 +31,7 @@ from .bundled_backend.shared.runtime_state import ONBOARDING_STEP_LABELS, REQUIR
 from .cloud import CloudImportManager
 from .config import AppConfig, AppPaths, load_config, resolve_paths
 from .log_retention import configure_jsonl_logging
+from .mqtt_websocket import register_mqtt_websocket_route
 from .turn_relay import EmbeddedTurnRelay
 from .standalone_admin import register_standalone_admin_routes
 from .backend import (
@@ -1941,6 +1942,8 @@ class ReleaseSupervisor:
                 supervisor=self,
                 project_support=PROJECT_SUPPORT,
             )
+        if self.config.network.mqtt_websocket_enabled:
+            register_mqtt_websocket_route(app, mqtt_proxy=lambda: self._mqtt_proxy)
         self._register_protocol_routes(app)
         return app
 
