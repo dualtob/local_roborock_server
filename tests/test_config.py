@@ -591,3 +591,27 @@ def test_web_app_and_mqtt_websocket_stay_off_without_container_defaults(tmp_path
     config = load_config(write_release_config(tmp_path))
     assert config.web_app.folder == ""
     assert config.network.mqtt_websocket_enabled is False
+
+
+def test_cors_allowed_origins_are_empty_by_default(tmp_path):
+    assert load_config(write_release_config(tmp_path)).network.cors_allowed_origins == ()
+
+
+def test_cors_allowed_origins_load_from_config(tmp_path):
+    path = write_release_config(tmp_path)
+    path.write_text(
+        path.read_text().replace(
+            "[network]\n",
+            '[network]\ncors_allowed_origins = ["https://web.example.com", "http://localhost:8080/"]\n',
+            1,
+        )
+    )
+    assert load_config(path).network.cors_allowed_origins == ("https://web.example.com", "http://localhost:8080")
+
+
+@pytest.mark.parametrize("origin", ["web.example.com", "https://web.example.com/app", "*", "ftp://web.example.com"])
+def test_cors_allowed_origins_reject_anything_but_an_origin(tmp_path, origin):
+    path = write_release_config(tmp_path)
+    path.write_text(path.read_text().replace("[network]\n", f'[network]\ncors_allowed_origins = ["{origin}"]\n', 1))
+    with pytest.raises(ValueError, match=f"network.cors_allowed_origins entry '{origin}'"):
+        load_config(path)

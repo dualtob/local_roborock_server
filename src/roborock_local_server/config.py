@@ -10,6 +10,8 @@ import re
 import tomllib
 from urllib.parse import urlsplit
 
+from .cors import parse_allowed_origins
+
 
 @dataclass(frozen=True)
 class NetworkConfig:
@@ -29,6 +31,7 @@ class NetworkConfig:
     trusted_proxies: tuple[str, ...] = ("127.0.0.1", "::1")
     timezone: str = ""
     mqtt_websocket_enabled: bool = False
+    cors_allowed_origins: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -340,6 +343,10 @@ def load_config(path: str | Path) -> AppConfig:
             mqtt_websocket_enabled=_as_bool(
                 _toml_env_or_default(network, "mqtt_websocket_enabled", MQTT_WEBSOCKET_ENABLED_ENV, False),
                 False,
+            ),
+            cors_allowed_origins=parse_allowed_origins(
+                network.get("cors_allowed_origins"),
+                "network.cors_allowed_origins",
             ),
         ),
         broker=BrokerConfig(
