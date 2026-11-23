@@ -25,7 +25,7 @@ STATIC_ASSET_SUFFIXES = frozenset(
     }
 )
 # Content types the host's MIME table may not know; the rest come from the extension.
-CONTENT_TYPES = {".webmanifest": "application/manifest+json"}
+CONTENT_TYPE_OVERRIDES = {".webmanifest": "application/manifest+json"}
 # Compose resources: strings (.cvr), vector drawables (.xml) and other data files.
 COMPOSE_RESOURCES_DIR = "composeResources"
 COMPOSE_RESOURCE_SUFFIXES = frozenset({".cvr", ".xml", ".json"})
@@ -56,7 +56,7 @@ class WebAppMiddleware:
         if file_path is None:
             await self.app(scope, receive, send)
             return
-        media_type = CONTENT_TYPES.get(file_path.suffix.lower())
+        media_type = CONTENT_TYPE_OVERRIDES.get(file_path.suffix.lower())
         await FileResponse(file_path, media_type=media_type)(scope, receive, send)
 
     def _file_for(self, scope: Scope) -> Path | None:

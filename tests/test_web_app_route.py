@@ -135,10 +135,17 @@ DECOY_PATHS = [
     "user/homes/12345.json",
     "ui/api/health",
     "mqtt",
+    # Home-screen manifests and icons are served from the folder, but never under these routes.
+    "api/v1/manifest.webmanifest",
+    "api/v1/apple-touch-icon.png",
+    "user/homes/manifest.webmanifest",
+    "user/homes/icon-192.png",
+    "admin/manifest.webmanifest",
+    "admin/apple-touch-icon.png",
 ]
 
 
-def test_files_named_like_api_routes_are_not_served(tmp_path: Path) -> None:
+def test_files_named_like_api_or_admin_routes_are_not_served(tmp_path: Path) -> None:
     _write_web_app(tmp_path / "webapp")
     for relative in DECOY_PATHS:
         decoy = tmp_path / "webapp" / relative
@@ -222,26 +229,3 @@ def test_home_screen_icons_at_the_root_are_served_as_images(tmp_path: Path) -> N
     assert served["apple-touch-icon.png"].headers["content-type"] == "image/png"
     assert served["icon-512.png"].headers["content-type"] == "image/png"
     assert served["favicon.ico"].headers["content-type"].startswith("image/")
-
-
-HOME_SCREEN_DECOY_PATHS = [
-    "api/v1/manifest.webmanifest",
-    "api/v1/apple-touch-icon.png",
-    "user/homes/manifest.webmanifest",
-    "user/homes/icon-192.png",
-    "admin/manifest.webmanifest",
-    "admin/apple-touch-icon.png",
-]
-
-
-def test_manifests_and_icons_named_like_api_or_admin_routes_are_not_served(tmp_path: Path) -> None:
-    _write_web_app(tmp_path / "webapp")
-    for relative in HOME_SCREEN_DECOY_PATHS:
-        decoy = tmp_path / "webapp" / relative
-        decoy.parent.mkdir(parents=True, exist_ok=True)
-        decoy.write_text("decoy\n", encoding="utf-8")
-    client = _client(tmp_path, web_app_folder="webapp")
-
-    served = [path for path in HOME_SCREEN_DECOY_PATHS if client.get(f"/{path}").text == "decoy\n"]
-
-    assert served == []
