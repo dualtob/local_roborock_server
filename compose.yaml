@@ -7,8 +7,8 @@ services:
         # The LocalRock Web App release baked into the image (served at /).
         # Change both together and run `docker compose build` to update the Web App;
         # the build fails if the downloaded zip doesn't match the checksum.
-        WEB_APP_VERSION: web-v0.1.0
-        WEB_APP_SHA256: dee9d64a934eda89b97c8d63c2c2a9eadd880fb98789256346ee7a12cab7bc0c
+        WEB_APP_VERSION: web-v0.2.0
+        WEB_APP_SHA256: 23545c61de0c32d6bf9cc060f9fa8016d892669ee9fc35a74da9a28c91507645
     container_name: roborock-local-server
     restart: unless-stopped
     ports:
